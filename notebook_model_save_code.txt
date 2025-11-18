@@ -1,0 +1,21 @@
+# Add this code cell to your notebook after training the Random Forest model
+
+import joblib
+
+# Save the trained Random Forest model
+# (assuming your trained model is stored in variable 'rf_model')
+joblib.dump(rf_model, 'model.pkl')
+print("Model saved successfully as 'model.pkl'")
+
+# Verify the model was saved correctly
+try:
+    loaded_model = joblib.load('model.pkl')
+    print("Model loaded successfully for verification")
+    
+    # Test with a sample prediction
+    sample_input = [[1, 4, 0.44, 0.5, 0, 1, 1, 0, 2, 0, 1, 3]]
+    prediction = loaded_model.predict(sample_input)
+    print(f"Sample prediction: {prediction[0]:.4f}")
+    
+except Exception as e:
+    print(f"Error: {e}")
