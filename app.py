@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 
 # Page configuration
@@ -16,51 +14,74 @@ st.set_page_config(
 st.title("🚗 Road Accident Risk Predictor")
 st.markdown("### Predict accident risk based on road conditions and environmental factors")
 
-@st.cache_data
-def load_model():
-    """Load the trained model"""
+@st.cache_resource
+def get_model():
+    """Create and return trained model"""
     try:
-        model = joblib.load('model.pkl')
+        df_train = pd.read_csv("data/train.csv")
+        df_train.drop(columns=["id"], inplace=True)
+        
+        # Encode categorical columns
+        categorical_mappings = {
+            'road_type': {'highway': 0, 'rural': 1, 'urban': 2},
+            'lighting': {'daylight': 0, 'dim': 1, 'night': 2},
+            'weather': {'clear': 0, 'foggy': 1, 'rainy': 2},
+            'time_of_day': {'afternoon': 0, 'evening': 1, 'morning': 2}
+        }
+        
+        for col, mapping in categorical_mappings.items():
+            df_train[col] = df_train[col].map(mapping)
+        
+        # Convert boolean columns
+        bool_cols = ['road_signs_present', 'public_road', 'holiday', 'school_season']
+        for col in bool_cols:
+            df_train[col] = df_train[col].astype(int)
+        
+        # Scale speed_limit
+        df_train['speed_limit'] = (df_train['speed_limit'] - 25) / 45
+        
+        # Train model
+        X = df_train.drop(columns=['accident_risk'])
+        y = df_train['accident_risk']
+        
+        model = RandomForestRegressor(random_state=42, n_estimators=50)
+        model.fit(X, y)
+        
         return model
-    except FileNotFoundError:
-        st.error("Model file not found. Please ensure model.pkl exists in the project directory.")
-        return None
-
-def preprocess_data(df):
-    """Preprocess the data similar to training"""
-    df_processed = df.copy()
-    
-    # Define categorical columns
-    categorical_columns = ['road_type', 'lighting', 'weather', 'road_signs_present', 
-                          'public_road', 'time_of_day', 'holiday', 'school_season']
-    
-    # Apply Label Encoding to categorical columns
-    for col in categorical_columns:
-        if col in df_processed.columns:
-            le = LabelEncoder()
-            df_processed[col] = le.fit_transform(df_processed[col])
-    
-    # Apply MinMax scaling to speed_limit
-    if 'speed_limit' in df_processed.columns:
-        scaler = MinMaxScaler()
-        df_processed['speed_limit'] = scaler.fit_transform(df_processed[['speed_limit']])
-    
-    return df_processed
-
-def make_predictions(model, data):
-    """Make predictions using the loaded model"""
-    try:
-        predictions = model.predict(data)
-        return predictions
     except Exception as e:
-        st.error(f"Error making predictions: {str(e)}")
+        st.error(f"Error loading data: {e}")
         return None
+
+def preprocess_input(data):
+    """Preprocess input data"""
+    df = data.copy()
+    
+    # Encode categorical variables
+    encodings = {
+        'road_type': {'highway': 0, 'rural': 1, 'urban': 2},
+        'lighting': {'daylight': 0, 'dim': 1, 'night': 2},
+        'weather': {'clear': 0, 'foggy': 1, 'rainy': 2},
+        'time_of_day': {'afternoon': 0, 'evening': 1, 'morning': 2}
+    }
+    
+    for col, mapping in encodings.items():
+        df[col] = df[col].map(mapping)
+    
+    # Convert boolean columns
+    bool_cols = ['road_signs_present', 'public_road', 'holiday', 'school_season']
+    for col in bool_cols:
+        df[col] = df[col].astype(int)
+    
+    # Scale speed_limit
+    df['speed_limit'] = (df['speed_limit'] - 25) / 45
+    
+    return df
 
 # Load model
-model = load_model()
+model = get_model()
 
 if model is not None:
-    # Input form for prediction
+    # Input form
     st.markdown("## 📝 Enter Road Condition Data")
     
     with st.form("prediction_form"):
@@ -85,7 +106,7 @@ if model is not None:
         submitted = st.form_submit_button("🔮 Predict Accident Risk", type="primary")
         
         if submitted:
-            # Create dataframe from inputs
+            # Create input dataframe
             input_data = pd.DataFrame({
                 'road_type': [road_type],
                 'num_lanes': [num_lanes],
@@ -102,51 +123,31 @@ if model is not None:
             })
             
             with st.spinner("Making prediction..."):
-                # Preprocess data
-                processed_data = preprocess_data(input_data)
+                # Preprocess and predict
+                processed_data = preprocess_input(input_data)
+                prediction = model.predict(processed_data)[0]
                 
-                # Make prediction
-                prediction = make_predictions(model, processed_data)
+                # Display results
+                st.markdown("## 📊 Prediction Result")
                 
-                if prediction is not None:
-                    # Display results
-                    st.markdown("## 📊 Prediction Result")
-                    
-                    risk_score = prediction[0]
-                    
-                    # Display risk score with color coding
-                    if risk_score < 0.3:
-                        st.success(f"🟢 **Low Risk**: {risk_score:.4f}")
-                    elif risk_score < 0.6:
-                        st.warning(f"🟡 **Medium Risk**: {risk_score:.4f}")
-                    else:
-                        st.error(f"🔴 **High Risk**: {risk_score:.4f}")
-                    
-                    # Display input summary
-                    st.markdown("### 📋 Input Summary")
-                    st.dataframe(input_data, use_container_width=True)
+                if prediction < 0.3:
+                    st.success(f"🟢 **Low Risk**: {prediction:.4f}")
+                elif prediction < 0.6:
+                    st.warning(f"🟡 **Medium Risk**: {prediction:.4f}")
+                else:
+                    st.error(f"🔴 **High Risk**: {prediction:.4f}")
+                
+                # Display input summary
+                st.markdown("### 📋 Input Summary")
+                st.dataframe(input_data, use_container_width=True)
 
-else:
-    st.error("❌ Unable to load the model. Please check if model.pkl exists in the project directory.")
-    st.markdown("### 🔧 Model Training Required")
-    st.markdown("Please run the notebook in the `notebooks/` folder to train and save the model first.")
-
-# Sidebar with additional information
+# Sidebar
 st.sidebar.markdown("## ℹ️ About")
 st.sidebar.markdown("""
-This application predicts road accident risk based on various factors including:
-- Road characteristics
-- Environmental conditions  
-- Traffic conditions
-- Temporal factors
+This application predicts road accident risk using Random Forest Regression.
 
-The model uses Random Forest Regression trained on historical accident data.
-""")
-
-st.sidebar.markdown("## 🛠️ Model Info")
-st.sidebar.markdown("""
-- **Algorithm**: Random Forest Regressor
-- **Features**: 12 input features
-- **Output**: Accident risk score (0-1)
-- **Training Data**: 517,754 samples
+**Risk Levels:**
+- 🟢 Low: 0.0 - 0.3
+- 🟡 Medium: 0.3 - 0.6  
+- 🔴 High: 0.6 - 1.0
 """)
