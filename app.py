@@ -18,7 +18,7 @@ st.markdown("### Predict accident risk based on road conditions and environmenta
 def get_model():
     """Create and return trained model"""
     try:
-        df_train = pd.read_csv("data/train.csv")
+        df_train = pd.read_csv("train.csv")
         df_train.drop(columns=["id"], inplace=True)
         
         # Encode categorical columns
