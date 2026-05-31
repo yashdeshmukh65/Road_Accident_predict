@@ -4,7 +4,7 @@ A machine learning-powered web application that predicts road accident risk base
 
 ## 🚀 Live Demo
 
-Deploy this app on Streamlit Cloud: [https://share.streamlit.io](https://share.streamlit.io)
+Deployed this app on Streamlit Cloud: [https://share.streamlit.io](https://share.streamlit.io)
 
 ## 📊 Model Performance
 
